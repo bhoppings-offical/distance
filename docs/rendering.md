@@ -1,86 +1,87 @@
 # Rendering Guide
 
-Create custom HUDs and visual elements using Distance's 2D rendering API.
+Create custom HUDs and visual effects using Distance's 2D and 3D rendering APIs.
 
 ## Table of Contents
 
-- [Screen Dimensions](#screen-dimensions)
+- [2D Rendering Basics](#2d-rendering-basics)
+- [Screen Dimensions & Text Metrics](#screen-dimensions--text-metrics)
 - [Text Rendering](#text-rendering)
 - [Shapes](#shapes)
-- [Colors](#colors)
-- [Complete Examples](#complete-examples)
+- [Lines & Gradients](#lines--gradients)
+- [Circles, Rings & Arcs](#circles-rings--arcs)
+- [Progress Bars](#progress-bars)
+- [Scissor / Clipping](#scissor--clipping)
+- [Images & Textures](#images--textures)
+- [3D Rendering](#3d-rendering)
+- [World to Screen Projection](#world-to-screen-projection)
+- [Color Reference](#color-reference)
+- [Complete HUD Example](#complete-hud-example)
 
 ---
 
-## Screen Dimensions
+## 2D Rendering Basics
 
-### `Distance.getScreenWidth()`
-Returns screen width in pixels.
-
-### `Distance.getScreenHeight()`
-Returns screen height in pixels.
+All 2D draw calls must happen inside a `render2d` event handler:
 
 ```javascript
 Distance.on("render2d", function() {
-    var width = Distance.getScreenWidth();
-    var height = Distance.getScreenHeight();
-    
-    Distance.drawText("Screen: " + width + "x" + height, 10, 10, 0xFFFFFF);
+    // draw here
 });
+```
+
+### Negative Coordinate Shorthand
+
+Passing a negative value for `x` or `y` positions the element relative to the **right/bottom** edge:
+
+```javascript
+// 10px from right edge, 10px from top
+Distance.drawTextShadow("Top Right", -80, 10, 0xFFFFFF);
+
+// 10px from bottom-left
+Distance.drawText("Bottom", 10, -20, 0xFFFFFF);
+```
+
+---
+
+## Screen Dimensions & Text Metrics
+
+```javascript
+var w = Distance.getScreenWidth();
+var h = Distance.getScreenHeight();
+
+var tw = Distance.textWidth("Hello");   // pixel width of string
+var th = Distance.textHeight();         // font height (usually 9)
 ```
 
 ---
 
 ## Text Rendering
 
-### `Distance.drawText(text, x, y, color)`
-Draws text without shadow.
+| Function | Description |
+|---|---|
+| `drawText(text, x, y, color)` | Plain text |
+| `drawTextShadow(text, x, y, color)` | Text with drop shadow — use this for readability |
+| `drawTextCentered(text, x, y, color)` | Horizontally centered on x |
+| `drawTextCenteredShadow(text, x, y, color)` | Centered with shadow |
+| `drawTextWithBorder(text, x, y, color, borderColor)` | Solid outline around text |
 
-**Parameters:**
-- `text` - String to display
-- `x` - X position (pixels from left)
-- `y` - Y position (pixels from top)
-- `color` - Color in 0xAARRGGBB format
-
-```javascript
-Distance.on("render2d", function() {
-    Distance.drawText("Hello World", 100, 100, 0xFFFFFFFF);
-});
-```
-
-### `Distance.drawTextShadow(text, x, y, color)`
-Draws text with shadow (recommended for better readability).
+Colors are `0xAARRGGBB`. If the alpha byte is `0x00`, full opacity is used.
 
 ```javascript
 Distance.on("render2d", function() {
-    Distance.drawTextShadow("Hello World", 100, 120, 0xFFFFFFFF);
-});
-```
-
-### `Distance.getStringWidth(text)`
-Returns the width of text in pixels (useful for alignment).
-
-**Example - Centered Text:**
-```javascript
-Distance.on("render2d", function() {
-    var text = "Centered Text";
-    var textWidth = Distance.getStringWidth(text);
-    var screenWidth = Distance.getScreenWidth();
-    var centerX = (screenWidth - textWidth) / 2;
+    if (Distance.isPlayerNull()) return;
     
-    Distance.drawTextShadow(text, centerX, 100, 0xFFFFFF00);
-});
-```
-
-**Example - Right-Aligned Text:**
-```javascript
-Distance.on("render2d", function() {
-    var text = "Right Aligned";
-    var textWidth = Distance.getStringWidth(text);
-    var screenWidth = Distance.getScreenWidth();
-    var rightX = screenWidth - textWidth - 10; // 10px padding
+    var cx = Distance.getScreenWidth() / 2;
     
-    Distance.drawTextShadow(text, rightX, 10, 0xFFFFFFFF);
+    // Centered title
+    Distance.drawTextCenteredShadow("&lDISTANCE", cx, 10, 0xFFAA00);
+    
+    // Right-aligned
+    Distance.drawTextShadow("FPS: " + Distance.getFPS(), -50, 10, 0xFFFFFF);
+    
+    // Outlined
+    Distance.drawTextWithBorder("ESP", 10, 30, 0xFF0000, 0x000000);
 });
 ```
 
@@ -88,348 +89,297 @@ Distance.on("render2d", function() {
 
 ## Shapes
 
-### Rectangles
+### `Distance.drawRect(x, y, w, h, color)`
+Plain filled rectangle.
 
-#### `Distance.drawRect(x, y, width, height, color)`
-Draws a filled rectangle.
+### `Distance.drawRoundedRect(x, y, w, h, radius, color)`
+Filled rounded rectangle. Use `radius = 0` for sharp corners.
 
-```javascript
-Distance.on("render2d", function() {
-    // Draw a semi-transparent black background
-    Distance.drawRect(50, 50, 200, 100, 0x80000000);
-});
-```
+### `Distance.drawBorderedRect(x, y, w, h, radius, fillColor, borderColor)`
+### `Distance.drawBorderedRect(x, y, w, h, radius, fillColor, borderColor, borderWidth)`
 
-#### `Distance.drawRoundedRect(x, y, width, height, radius, color)`
-Draws a filled rectangle with rounded corners.
-
-**Parameters:**
-- `x, y` - Top-left corner position
-- `width, height` - Rectangle dimensions
-- `radius` - Corner radius (higher = rounder)
-- `color` - Color in 0xAARRGGBB format
-
-```javascript
-Distance.on("render2d", function() {
-    // Modern rounded panel
-    Distance.drawRoundedRect(200, 50, 150, 80, 5, 0xFF1E90FF);
-});
-```
-
-### Circles
-
-#### `Distance.drawCircle(x, y, radius, color)`
-Draws a filled circle.
-
-**Parameters:**
-- `x, y` - Center position
-- `radius` - Circle radius
-- `color` - Color in 0xAARRGGBB format
-
-```javascript
-Distance.on("render2d", function() {
-    // Draw a magenta circle
-    Distance.drawCircle(300, 100, 25, 0xFFFF00FF);
-});
-```
-
-**Example - Dot Indicator:**
 ```javascript
 Distance.on("render2d", function() {
     if (Distance.isPlayerNull()) return;
     
-    var health = Distance.getHealth();
-    var maxHealth = Distance.getMaxHealth();
-    var healthPercent = health / maxHealth;
+    var hp = Distance.getHealth();
+    var maxHp = Distance.getMaxHealth();
     
-    // Color based on health
-    var color = healthPercent > 0.5 ? 0xFF55FF55 : 0xFFFF5555;
+    // Background panel with border
+    Distance.drawBorderedRect(10, 10, 120, 50, 4, 0x90000000, 0x40FFFFFF, 1);
     
-    Distance.drawCircle(30, 30, 8, color);
+    // Content inside
+    Distance.drawTextShadow("❤ " + hp.toFixed(1) + "/" + maxHp, 16, 16, 0xFF5555);
+    Distance.drawTextShadow("Food: " + Distance.getFoodLevel(), 16, 28, 0xFFAA00);
+    Distance.drawTextShadow("Armor: " + Distance.getArmor(), 16, 40, 0x5555FF);
 });
 ```
 
 ---
 
-## Colors
+## Lines & Gradients
 
-Colors use hexadecimal format: `0xAARRGGBB`
-
-**Format Breakdown:**
-- `AA` - Alpha (transparency): `00` = fully transparent, `FF` = opaque
-- `RR` - Red component
-- `GG` - Green component
-- `BB` - Blue component
-
-### Common Colors
-
-```javascript
-// Solid colors (opaque)
-0xFFFFFFFF  // White
-0xFF000000  // Black
-0xFFFF0000  // Red
-0xFF00FF00  // Green
-0xFF0000FF  // Blue
-0xFFFFFF00  // Yellow
-0xFFFF00FF  // Magenta
-0xFF00FFFF  // Cyan
-0xFFFF8800  // Orange
-
-// Semi-transparent colors
-0x80FFFFFF  // Semi-transparent white
-0x80000000  // Semi-transparent black
-0x90000000  // Dark overlay (common for HUD backgrounds)
-```
-
-### Custom Colors
-
-```javascript
-// Calculate custom color
-function makeColor(r, g, b, a) {
-    return (a << 24) | (r << 16) | (g << 8) | b;
-}
-
-var customColor = makeColor(255, 128, 64, 255); // Orange
-Distance.drawRect(10, 10, 100, 50, customColor);
-```
-
-### Dynamic Colors
+### `Distance.drawLine(x1, y1, x2, y2, color, width)`
 
 ```javascript
 Distance.on("render2d", function() {
-    if (Distance.isPlayerNull()) return;
-    
-    var health = Distance.getHealth();
-    var maxHealth = Distance.getMaxHealth();
-    var healthPercent = health / maxHealth;
-    
-    // Gradient from red to green based on health
-    var color;
-    if (healthPercent > 0.75) color = 0xFF55FF55;      // Green
-    else if (healthPercent > 0.5) color = 0xFFFFFF55;  // Yellow
-    else if (healthPercent > 0.25) color = 0xFFFFAA00; // Orange
-    else color = 0xFFFF5555;                           // Red
-    
-    Distance.drawTextShadow("HP: " + health, 10, 10, color);
+    var cx = Distance.getScreenWidth() / 2;
+    var cy = Distance.getScreenHeight() / 2;
+    Distance.drawLine(cx - 10, cy, cx + 10, cy, 0xFFFFFFFF, 1);
+    Distance.drawLine(cx, cy - 10, cx, cy + 10, 0xFFFFFFFF, 1);
+});
+```
+
+### `Distance.drawGradientRect(x, y, w, h, colorTop, colorBottom)`
+
+```javascript
+// Health bar with gradient
+Distance.on("render2d", function() {
+    var hp = Distance.getHealth() / Distance.getMaxHealth();
+    Distance.drawGradientRect(10, 10, 100 * hp, 8, 0xFFFF5555, 0xFFAA0000);
 });
 ```
 
 ---
 
-## Complete Examples
+## Circles, Rings & Arcs
 
-### Example 1: Player Info Panel
+### `Distance.drawCircle(x, y, radius, color)`
+Filled circle.
+
+### `Distance.drawRing(x, y, radius, thickness, color)`
+Hollow circle (outline only).
+
+### `Distance.drawArc(x, y, radius, startDeg, endDeg, color, lineWidth)`
+Partial arc. Degrees are clockwise, 0 = right.
 
 ```javascript
+// Circular health indicator
 Distance.on("render2d", function() {
     if (Distance.isPlayerNull()) return;
+    var hp = Distance.getHealth() / Distance.getMaxHealth();
+    var cx = Distance.getScreenWidth() / 2;
+    var cy = Distance.getScreenHeight() / 2 + 30;
     
-    // Panel background
-    Distance.drawRoundedRect(10, 10, 200, 80, 3, 0x90000000);
-    
-    // Player info
-    var name = Distance.getName();
-    var health = Distance.getHealth().toFixed(1);
-    var maxHealth = Distance.getMaxHealth().toFixed(1);
-    
-    Distance.drawTextShadow("Player: " + name, 15, 15, 0xFFFFFFFF);
-    Distance.drawTextShadow("Health: " + health + "/" + maxHealth, 15, 30, 0xFFFF5555);
-    
-    // Position
-    var x = Distance.getPlayerX().toFixed(1);
-    var y = Distance.getPlayerY().toFixed(1);
-    var z = Distance.getPlayerZ().toFixed(1);
-    
-    Distance.drawTextShadow("X: " + x, 15, 45, 0xFF55FF55);
-    Distance.drawTextShadow("Y: " + y, 15, 60, 0xFF55FF55);
-    Distance.drawTextShadow("Z: " + z, 15, 75, 0xFF55FF55);
-});
-```
-
-### Example 2: Speed Meter
-
-```javascript
-var speed = 0;
-
-Distance.on("tick", function() {
-    if (Distance.isPlayerNull()) return;
-    
-    var mx = Distance.getMotionX();
-    var mz = Distance.getMotionZ();
-    speed = Math.sqrt(mx * mx + mz * mz) * 20; // blocks/second
-});
-
-Distance.on("render2d", function() {
-    var screenWidth = Distance.getScreenWidth();
-    
-    // Background
-    Distance.drawRoundedRect(screenWidth - 130, 10, 120, 40, 3, 0x90000000);
-    
-    // Speed text
-    var speedText = "Speed: " + speed.toFixed(2) + " b/s";
-    Distance.drawTextShadow(speedText, screenWidth - 125, 15, 0xFF55FF55);
-    
-    // Color based on speed
-    var color = 0xFFFFFFFF;
-    if (speed > 10) color = 0xFFFF5555;      // Red - very fast
-    else if (speed > 5) color = 0xFFFFFF55;  // Yellow - fast
-    else color = 0xFF55FF55;                  // Green - normal
-    
-    Distance.drawTextShadow(speed.toFixed(2) + " b/s", screenWidth - 125, 30, color);
-});
-```
-
-### Example 3: FPS Monitor with Bar
-
-```javascript
-Distance.on("render2d", function() {
-    var fps = Distance.getFPS();
-    var maxFps = 144;
-    var fpsPercent = Math.min(fps / maxFps, 1.0);
-    
-    // Background
-    Distance.drawRoundedRect(10, 10, 110, 30, 3, 0x90000000);
-    
-    // FPS bar
-    var barWidth = 100 * fpsPercent;
-    var barColor = fps >= 60 ? 0xFF55FF55 : 0xFFFF5555;
-    Distance.drawRoundedRect(15, 25, barWidth, 10, 2, barColor);
-    
-    // FPS text
-    Distance.drawTextShadow("FPS: " + fps, 15, 12, 0xFFFFFFFF);
-});
-```
-
-### Example 4: Compass/Direction Indicator
-
-```javascript
-Distance.on("render2d", function() {
-    if (Distance.isPlayerNull()) return;
-    
-    var yaw = Distance.getYaw();
-    var normalizedYaw = ((yaw % 360) + 360) % 360;
-    
-    // Determine direction
-    var direction = "";
-    if (normalizedYaw >= 337.5 || normalizedYaw < 22.5) direction = "South";
-    else if (normalizedYaw >= 22.5 && normalizedYaw < 67.5) direction = "SW";
-    else if (normalizedYaw >= 67.5 && normalizedYaw < 112.5) direction = "West";
-    else if (normalizedYaw >= 112.5 && normalizedYaw < 157.5) direction = "NW";
-    else if (normalizedYaw >= 157.5 && normalizedYaw < 202.5) direction = "North";
-    else if (normalizedYaw >= 202.5 && normalizedYaw < 247.5) direction = "NE";
-    else if (normalizedYaw >= 247.5 && normalizedYaw < 292.5) direction = "East";
-    else direction = "SE";
-    
-    var screenWidth = Distance.getScreenWidth();
-    var screenHeight = Distance.getScreenHeight();
-    
-    var text = direction + " (" + Math.floor(normalizedYaw) + "°)";
-    var textWidth = Distance.getStringWidth(text);
-    
-    // Centered at bottom
-    Distance.drawRoundedRect(
-        (screenWidth - textWidth) / 2 - 5,
-        screenHeight - 40,
-        textWidth + 10,
-        25,
-        3,
-        0x90000000
-    );
-    
-    Distance.drawTextShadow(text, (screenWidth - textWidth) / 2, screenHeight - 35, 0xFF55FFFF);
-});
-```
-
-### Example 5: Multi-Panel Dashboard
-
-```javascript
-var speed = 0;
-var health = 0;
-var fps = 0;
-
-// Update values in tick
-Distance.on("tick", function() {
-    if (Distance.isPlayerNull()) return;
-    
-    var mx = Distance.getMotionX();
-    var mz = Distance.getMotionZ();
-    speed = Math.sqrt(mx * mx + mz * mz) * 20;
-    health = Distance.getHealth();
-});
-
-// Render dashboard
-Distance.on("render2d", function() {
-    fps = Distance.getFPS();
-    var screenWidth = Distance.getScreenWidth();
-    
-    // Panel 1: Speed
-    Distance.drawRoundedRect(screenWidth - 130, 10, 120, 35, 3, 0x90000000);
-    Distance.drawTextShadow("Speed", screenWidth - 125, 15, 0xFFFFAA00);
-    Distance.drawTextShadow(speed.toFixed(2) + " b/s", screenWidth - 125, 28, 0xFF55FF55);
-    
-    // Panel 2: FPS
-    Distance.drawRoundedRect(screenWidth - 130, 50, 120, 35, 3, 0x90000000);
-    Distance.drawTextShadow("FPS", screenWidth - 125, 55, 0xFFFFAA00);
-    var fpsColor = fps >= 60 ? 0xFF55FF55 : 0xFFFF5555;
-    Distance.drawTextShadow(fps.toString(), screenWidth - 125, 68, fpsColor);
-    
-    // Panel 3: Health
-    Distance.drawRoundedRect(screenWidth - 130, 90, 120, 35, 3, 0x90000000);
-    Distance.drawTextShadow("Health", screenWidth - 125, 95, 0xFFFFAA00);
-    var healthColor = health > 10 ? 0xFF55FF55 : 0xFFFF5555;
-    Distance.drawTextShadow(health.toFixed(1) + " HP", screenWidth - 125, 108, healthColor);
+    // Background ring
+    Distance.drawRing(cx, cy, 12, 2, 0x40FFFFFF);
+    // Health arc
+    Distance.drawArc(cx, cy, 12, -90, -90 + (360 * hp), 0xFFFF5555, 2);
+    // Center text
+    Distance.drawTextCenteredShadow(Math.ceil(Distance.getHealth()) + "", cx, cy - 4, 0xFFFFFF);
 });
 ```
 
 ---
 
-## Best Practices
+## Progress Bars
 
-### 1. Use Rounded Rectangles for Modern Look
+### `Distance.drawProgressBar(x, y, w, h, progress, bgColor, fgColor)`
+### `Distance.drawProgressBar(x, y, w, h, progress, radius, bgColor, fgColor)`
+
+`progress` is clamped to 0.0–1.0.
+
 ```javascript
-// Modern
-Distance.drawRoundedRect(10, 10, 200, 50, 3, 0x90000000);
-
-// Old-school
-Distance.drawRect(10, 10, 200, 50, 0x90000000);
-```
-
-### 2. Semi-Transparent Backgrounds
-```javascript
-// Good - doesn't completely block game view
-Distance.drawRoundedRect(10, 10, 200, 80, 3, 0x90000000);
-
-// Bad - completely opaque
-Distance.drawRoundedRect(10, 10, 200, 80, 3, 0xFF000000);
-```
-
-### 3. Use Shadows for Text
-```javascript
-// Good - readable on any background
-Distance.drawTextShadow("Text", 10, 10, 0xFFFFFFFF);
-
-// Less readable
-Distance.drawText("Text", 10, 10, 0xFFFFFFFF);
-```
-
-### 4. Cache Calculations
-```javascript
-// Compute in tick, render in render2d
-var cachedValue = 0;
-
-Distance.on("tick", function() {
-    cachedValue = expensiveCalculation();
-});
-
 Distance.on("render2d", function() {
-    Distance.drawText("Value: " + cachedValue, 10, 10, 0xFFFFFFFF);
+    if (Distance.isPlayerNull()) return;
+    
+    var hp = Distance.getHealth() / Distance.getMaxHealth();
+    var hpColor = Distance.lerpColor(0xFFFF3333, 0xFF33FF66, hp);
+    
+    // Rounded health bar
+    Distance.drawProgressBar(10, 10, 120, 7, hp, 3, 0x80000000, hpColor);
+    
+    // XP bar
+    var xp = Distance.getXpProgress();
+    Distance.drawProgressBar(10, 22, 120, 5, xp, 0x80000000, 0xFF55FF55);
+    
+    // Food bar
+    var food = Distance.getFoodLevel() / 20;
+    Distance.drawProgressBar(10, 32, 120, 5, food, 0x80000000, 0xFFFFAA00);
 });
 ```
 
 ---
 
-## Next Steps
+## Scissor / Clipping
 
-- Create [GUI Settings](gui-settings.md) for user customization
-- View complete [Examples](examples.md)
-- Learn [Best Practices](best-practices.md)
+Use scissor to clip rendering to a rectangular region — useful for scroll containers or bounded panels.
+
+```javascript
+Distance.scissorStart(10, 10, 200, 100);
+// Anything drawn outside (10,10)→(210,110) will be hidden
+Distance.drawText("Clipped content", 10, 120, 0xFFFFFF); // invisible — below clip
+Distance.drawText("Visible content", 10, 50, 0xFFFFFF);
+Distance.scissorEnd();
+```
+
+---
+
+## Images & Textures
+
+### Remote Images
+
+```javascript
+// Load once at script start
+Distance.downloadImage("https://example.com/icon.png", "my_icon", function() {
+    Distance.log("Image ready");
+});
+
+Distance.on("render2d", function() {
+    Distance.drawImage("my_icon", 10, 10, 32, 32);
+});
+```
+
+### Minecraft Resources
+
+```javascript
+Distance.on("render2d", function() {
+    Distance.drawResource("textures/items/diamond.png", 10, 10, 16, 16);
+    Distance.drawResource("textures/blocks/grass_top.png", 30, 10, 16, 16);
+});
+```
+
+---
+
+## 3D Rendering
+
+All 3D draw calls go inside `render3d`. They are rendered **without depth testing** (always visible through walls) unless you manage GL state manually.
+
+```javascript
+Distance.on("render3d", function(partialTicks) {
+    // World-space rendering here
+});
+```
+
+### Outlines / Wireframes
+
+```javascript
+// Around an entity
+Distance.drawOutline(entity, 0xFFFF0000, 2.0);
+
+// Around a block
+Distance.drawOutline(x, y, z, 0xFF00FF00, 1.5);
+```
+
+### Filled Boxes
+
+```javascript
+// 1x1x1 block
+Distance.drawFilledBox(x, y, z, 0x8000FF00);
+
+// Custom size
+Distance.drawFilledBox(x, y, z, 1, 2, 1, 0x8000FF00);
+```
+
+### Lines
+
+```javascript
+Distance.drawLine3D(
+    Distance.getPlayerX(), Distance.getPlayerY() + 1, Distance.getPlayerZ(),
+    targetX, targetY, targetZ,
+    0xFF00FFFF
+);
+```
+
+### Spheres & Pyramids
+
+```javascript
+Distance.drawSphere(x, y + 1, z, 1.5, 16, 16, 0x8000FFFF);
+Distance.drawPyramid(x, y, z, 1, 2, 0x80FF8800);
+```
+
+---
+
+## World to Screen Projection
+
+Convert a 3D world position to 2D screen coordinates for labels, health bars, etc.
+
+```javascript
+Distance.on("render2d", function() {
+    if (Distance.isPlayerNull()) return;
+    
+    var players = Distance.getPlayers();
+    for (var i = 0; i < players.length; i++) {
+        var p = players[i];
+        var pos = Distance.worldToScreen(p.x, p.y + 2.2, p.z);
+        
+        if (pos == null || !pos.visible) continue;
+        
+        var hpRatio = p.health / p.maxHealth;
+        var hpColor = Distance.lerpColor(0xFFFF3333, 0xFF33FF66, hpRatio);
+        
+        // Name tag
+        Distance.drawTextCenteredShadow(p.name, pos.x, pos.y, 0xFFFFFF);
+        
+        // Health bar below name
+        var bw = 40;
+        Distance.drawProgressBar(pos.x - bw/2, pos.y + 10, bw, 3, hpRatio, 0x80000000, hpColor);
+    }
+});
+```
+
+Always check `pos.visible` before drawing — it prevents rendering labels for entities behind you.
+
+---
+
+## Color Reference
+
+Colors are `int` values in `0xAARRGGBB` format. Alpha `0x00` is treated as fully opaque.
+
+```javascript
+0xFFFFFFFF  // white, fully opaque
+0xFF000000  // black
+0x80FF0000  // red, 50% transparent
+0x00FFFFFF  // white, but alpha=0 → drawn fully opaque (Distance behavior)
+```
+
+### Building Colors
+
+```javascript
+Distance.rgb(255, 0, 0)            // → 0xFFFF0000
+Distance.argb(128, 255, 0, 0)      // → 0x80FF0000
+Distance.parseColor("#FF5500")     // parse hex string
+Distance.lerpColor(a, b, 0.5)      // blend two colors
+Distance.getChromaColor()          // cycling rainbow
+Distance.resolveColor("Chroma")    // resolve Distance color string
+```
+
+---
+
+## Complete HUD Example
+
+```javascript
+Distance.createTab("Pro HUD", "visuals");
+
+var show = Distance.loadDataBool("hud_show", true);
+var col  = Distance.resolveColor(Distance.loadData("hud_col", "FFFFFF"));
+
+Distance.addToggle("Show HUD", show, function(v) { show = v; Distance.saveData("hud_show", v); });
+Distance.addColor("Color", "FFFFFF", function(v) { col = Distance.resolveColor(v); Distance.saveData("hud_col", v); });
+
+Distance.on("render2d", function() {
+    if (!show || Distance.isPlayerNull()) return;
+    
+    var W = Distance.getScreenWidth();
+    var hp = Distance.getHealth() / Distance.getMaxHealth();
+    
+    // Panel
+    Distance.drawBorderedRect(W - 144, 10, 134, 80, 5, 0xA0000000, 0x30FFFFFF, 1);
+    
+    // Health bar
+    var hpColor = Distance.lerpColor(0xFFFF4444, 0xFF44FF88, hp);
+    Distance.drawProgressBar(W - 140, 14, 126, 6, hp, 3, 0x40000000, hpColor);
+    
+    // Stats
+    var y = 26;
+    var lineH = 12;
+    Distance.drawTextShadow("❤  " + Distance.getHealth().toFixed(1) + "/" + Distance.getMaxHealth(), W - 140, y, hpColor); y += lineH;
+    Distance.drawTextShadow("⚡ " + (Distance.getSpeed() * 20).toFixed(2) + " b/s", W - 140, y, col); y += lineH;
+    Distance.drawTextShadow("✦  " + Distance.getXpLevel() + " XP", W - 140, y, 0x55FF55); y += lineH;
+    Distance.drawTextShadow("◉  " + Distance.currentServerIP(), W - 140, y, 0xAAAAAA); y += lineH;
+    Distance.drawTextShadow("⬡  " + Distance.getBiome(Distance.getPlayerX(), Distance.getPlayerY(), Distance.getPlayerZ()), W - 140, y, col);
+    
+    // Chroma accent line at top of panel
+    Distance.drawLine(W - 144, 10, W - 10, 10, Distance.getChromaColor(0.5), 1);
+});
+```

@@ -1,135 +1,299 @@
 # Advanced Features
 
-Advanced capabilities for Distance scripts including web requests, image rendering, and 3D graphics.
+Advanced capabilities including storage, script communication, color utilities, world queries, and more.
 
 ## Table of Contents
 
+- [Persistent Storage](#persistent-storage)
+- [Script Communication](#script-communication)
+- [Color Utilities](#color-utilities)
+- [Block Scanning](#block-scanning)
+- [Entity Queries](#entity-queries)
+- [Clipboard](#clipboard)
 - [Web Requests](#web-requests)
 - [Image Rendering](#image-rendering)
 - [3D Rendering](#3d-rendering)
-- [Inventory Management](#inventory-management)
 - [Notifications](#notifications)
+
+---
+
+## Persistent Storage
+
+Scripts can save and load data that persists across game sessions. Data is stored in `config/DistanceMod/scripts/<scriptName>.dat`.
+
+```javascript
+// Save values
+Distance.saveData("score", 9001);        // number
+Distance.saveData("name", "Steve");      // string
+Distance.saveData("active", true);       // boolean
+
+// Load values
+var score  = Distance.loadDataDouble("score", 0);
+var name   = Distance.loadData("name", "Unknown");
+var active = Distance.loadDataBool("active", false);
+
+// Delete a key
+Distance.deleteData("tempKey");
+```
+
+**Typical use — persist user settings:**
+```javascript
+var volume = Distance.loadDataDouble("vol", 1.0);
+
+Distance.addSlider("Volume", volume, 0.0, 1.0, function(value) {
+    volume = value;
+    Distance.saveData("vol", value);
+});
+```
+
+---
+
+## Script Communication
+
+Scripts can send and receive events from each other using `emit` and `on`.
+
+### Sending an Event
+
+```javascript
+// ScriptA.dscript
+Distance.emit("playerAlert", { message: "Enemy spotted!", x: Distance.getPlayerX() });
+```
+
+### Receiving an Event
+
+```javascript
+// ScriptB.dscript
+Distance.on("playerAlert", function(data) {
+    Distance.notification("Alert", data.message, 3);
+    Distance.chat("Alert at X: " + data.x);
+});
+```
+
+`emit` broadcasts to **all** loaded scripts simultaneously — including the sender. Use `Distance.getScriptNames()` to inspect what's currently running:
+
+```javascript
+var scripts = Distance.getScriptNames();
+Distance.chat("Running: " + scripts.join(", "));
+```
+
+---
+
+## Color Utilities
+
+### Building Colors
+
+```javascript
+var red   = Distance.rgb(255, 0, 0);           // opaque
+var semiR = Distance.argb(128, 255, 0, 0);     // 50% alpha
+var hex   = Distance.parseColor("#3498DB");    // from hex string
+```
+
+### Interpolating Colors
+
+```javascript
+// Smooth health bar color: green → red
+var hp      = Distance.getHealth() / Distance.getMaxHealth();
+var barColor = Distance.lerpColor(0xFFFF0000, 0xFF00FF00, hp);
+Distance.drawProgressBar(10, 10, 100, 6, hp, barColor, barColor);
+```
+
+### Chroma / Rainbow
+
+```javascript
+Distance.on("render2d", function() {
+    Distance.drawTextShadow("Chroma Text!", 10, 10, Distance.getChromaColor());
+    Distance.drawTextShadow("Fast Chroma!", 10, 25, Distance.getChromaColor(3.0));
+});
+```
+
+### Resolving User Colors
+
+When using color settings from `addColor`, always use `resolveColor` — it handles plain hex, `"Chroma"`, and `"Multi"` values:
+
+```javascript
+var color = 0xFFFFFFFF;
+
+Distance.addColor("Color", "FFFFFF", function(value) {
+    color = Distance.resolveColor(value);
+});
+```
+
+---
+
+## Block Scanning
+
+### Single Block Lookup
+
+```javascript
+var block = Distance.getBlockAt(Distance.getPlayerX(), Distance.getPlayerY() - 1, Distance.getPlayerZ());
+// { id: "minecraft:stone", name: "Stone", meta: 0, isAir: false }
+```
+
+### Area Scan
+
+Scan all non-air blocks within a radius:
+
+```javascript
+// Ore finder (radius 8 around player)
+Distance.on("key", function(key) {
+    if (key !== 38) return; // L key
+    
+    var blocks = Distance.scanBlocks(
+        Distance.getPlayerX(),
+        Distance.getPlayerY(),
+        Distance.getPlayerZ(),
+        8
+    );
+    
+    var ores = blocks.filter(function(b) {
+        return b.id.includes("ore");
+    });
+    
+    Distance.chat("Found " + ores.length + " ore blocks nearby");
+    
+    Distance.on("render3d", function() {
+        ores.forEach(function(b) {
+            Distance.drawOutline(b.x, b.y, b.z, 0xFFFFAA00, 2.0);
+        });
+    });
+});
+```
+
+> Keep radius ≤ 8 for real-time use. Larger scans are fine for one-shot queries on a key press.
+
+---
+
+## Entity Queries
+
+### Nearby Players
+
+```javascript
+var nearby = Distance.getNearbyPlayers(10);
+Distance.chat("Players within 10 blocks: " + nearby.length);
+```
+
+### Closest Target
+
+```javascript
+var closest = Distance.getClosestPlayer();
+if (closest != null) {
+    Distance.chat("Nearest player: " + closest.name + " at " + closest.distance.toFixed(1) + "m");
+}
+```
+
+### Equipment Check
+
+```javascript
+var target = Distance.getClosestPlayer();
+if (target != null) {
+    var eq = Distance.getEquipment(target.id);
+    if (eq != null && eq.helmet != null) {
+        Distance.chat(target.name + " is wearing: " + eq.helmet.name);
+    }
+}
+```
+
+### Entity by ID
+
+```javascript
+Distance.on("attack", function(target) {
+    var entity = Distance.getEntityById(target.id);
+    if (entity != null) {
+        Distance.chat("Attacked: " + entity.name + " HP: " + entity.health);
+    }
+});
+```
+
+---
+
+## Clipboard
+
+```javascript
+// Copy current coordinates
+Distance.on("key", function(key) {
+    if (key !== 38) return;
+    var coords = Distance.getPlayerX().toFixed(0) + " " + Distance.getPlayerY().toFixed(0) + " " + Distance.getPlayerZ().toFixed(0);
+    Distance.copyToClipboard(coords);
+    Distance.chat("&aCopied: " + coords);
+});
+
+// Read clipboard
+var text = Distance.getClipboard();
+Distance.log("Clipboard: " + text);
+```
 
 ---
 
 ## Web Requests
 
-Distance scripts can make asynchronous HTTP requests to external APIs.
-
-### GET Requests
+### GET Request
 
 ```javascript
-Distance.httpGet("https://api.example.com/data", function(response) {
-    Distance.log("Received: " + response);
-    
+Distance.httpGet("https://api.example.com/status", function(response) {
     var data = JSON.parse(response);
-    Distance.chat("Value: " + data.value);
+    Distance.chat("Server status: " + data.status);
 });
 ```
 
-**Use cases:**
-- Fetch server status
-- Get player statistics
-- Load external data
-- Check for updates
-
-### POST Requests
+### POST Request
 
 ```javascript
 var payload = JSON.stringify({
-    username: Distance.getName(),
+    player: Distance.getName(),
+    uuid: Distance.getUUID(),
     score: 1000
 });
 
-Distance.httpPost("https://api.example.com/submit", payload, function(response) {
-    Distance.chat("&aSubmitted successfully!");
+Distance.httpPost("https://api.example.com/scores", payload, function(response) {
+    Distance.chat("&aScore submitted!");
 });
 ```
 
-**Note:** Callbacks execute on the main thread, safe for all Distance API calls.
-
-### Example - Weather Display
+### Custom Headers
 
 ```javascript
-Distance.createTab("Weather", "world");
-
-var weatherData = "Loading...";
-var lastUpdate = 0;
-
-Distance.on("tick", function() {
-    var now = Date.now();
-    if (now - lastUpdate > 60000) {
-        Distance.httpGet("https://api.weather.com/current", function(response) {
-            var data = JSON.parse(response);
-            weatherData = data.temp + "°F - " + data.conditions;
-            lastUpdate = now;
-        });
+Distance.httpGet(
+    "https://api.example.com/private",
+    { "Authorization": "Bearer my-token", "Accept": "application/json" },
+    function(response) {
+        Distance.log(response);
     }
-});
-
-Distance.on("render2d", function() {
-    Distance.drawTextShadow(weatherData, 10, 10, 0xFFFFFF);
-});
+);
 ```
+
+All requests are non-blocking. Callbacks run on the main thread — safe to call any Distance API inside them.
 
 ---
 
 ## Image Rendering
 
-Download and display images from the internet.
-
-### Downloading Images
+### Downloading an Image
 
 ```javascript
 Distance.downloadImage(
-    "https://example.com/icon.png",
-    "player_icon",
+    "https://crafatar.com/avatars/" + Distance.getUUID(),
+    "my_avatar",
     function() {
-        Distance.log("Image ready!");
-    }
-);
-```
-
-**Parameters:**
-1. URL (string)
-2. Unique ID (string) - used to reference the image later
-3. Callback (function) - called when image is ready
-
-### Drawing Images
-
-```javascript
-Distance.on("render2d", function() {
-    Distance.drawImage("player_icon", 10, 10, 64, 64);
-});
-```
-
-**Parameters:**
-- `imageId` - The unique ID from `downloadImage`
-- `x, y` - Position on screen
-- `width, height` - Size to render
-
-### Example - Avatar Display
-
-```javascript
-Distance.createTab("Avatar", "star");
-
-var avatarLoaded = false;
-var playerUUID = "069a79f4-44e9-4726-a5be-fca90e38aaf5";
-
-Distance.downloadImage(
-    "https://crafatar.com/avatars/" + playerUUID,
-    "avatar",
-    function() {
-        avatarLoaded = true;
         Distance.chat("&aAvatar loaded!");
     }
 );
+```
 
+### Drawing an Image
+
+```javascript
 Distance.on("render2d", function() {
-    if (avatarLoaded) {
-        var screenWidth = Distance.getScreenWidth();
-        Distance.drawImage("avatar", screenWidth - 74, 10, 64, 64);
-    }
+    // Draw in top-right corner using negative coords
+    Distance.drawImage("my_avatar", -74, 10, 64, 64);
+});
+```
+
+### Drawing Minecraft Resources
+
+```javascript
+Distance.on("render2d", function() {
+    Distance.drawResource("textures/items/diamond.png", 10, 10, 16, 16);
+    Distance.drawResource("minecraft:textures/entity/creeper/creeper.png", 30, 10, 32, 32);
 });
 ```
 
@@ -137,167 +301,59 @@ Distance.on("render2d", function() {
 
 ## 3D Rendering
 
-Render shapes and lines in world space.
-
-### 3D Boxes
+### Entity ESP
 
 ```javascript
 Distance.on("render3d", function() {
-    if (Distance.isPlayerNull()) return;
-    
-    var px = Distance.getPlayerX();
-    var py = Distance.getPlayerY();
-    var pz = Distance.getPlayerZ();
-    
-    Distance.drawBox3D(
-        px + 2,     // x
-        py,         // y
-        pz,         // z
-        1,          // width
-        2,          // height
-        1,          // depth
-        0x8000FF00  // color (semi-transparent green)
-    );
+    var players = Distance.getPlayers();
+    for (var i = 0; i < players.length; i++) {
+        var p = players[i];
+        Distance.drawOutline(p, 0xFFFF0000, 2.0);
+        
+        var pos = Distance.worldToScreen(p.x, p.y + 2.2, p.z);
+        if (pos != null && pos.visible) {
+            Distance.drawTextCenteredShadow(p.name, pos.x, pos.y, 0xFFFFFF);
+        }
+    }
 });
 ```
 
-### 3D Lines
-
-```javascript
-Distance.on("render3d", function() {
-    if (Distance.isPlayerNull()) return;
-    
-    var px = Distance.getPlayerX();
-    var py = Distance.getPlayerY();
-    var pz = Distance.getPlayerZ();
-    
-    Distance.drawLine3D(
-        px, py, pz,
-        px + 5, py + 5, pz + 5,
-        0xFFFF0000
-    );
-});
-```
-
-### Example - Waypoint Markers
+### Waypoint Markers
 
 ```javascript
 var waypoints = [];
 
-Distance.on("tick", function() {
-    if (Distance.isPlayerNull()) return;
-    
-    if (Distance.isKeyDown(38)) {
-        waypoints.push({
-            x: Distance.getPlayerX(),
-            y: Distance.getPlayerY(),
-            z: Distance.getPlayerZ()
-        });
-        Distance.chat("&aWaypoint added!");
-    }
+Distance.on("key", function(key) {
+    if (key !== 38) return; // L key
+    waypoints.push({ x: Distance.getPlayerX(), y: Distance.getPlayerY(), z: Distance.getPlayerZ() });
+    Distance.chat("&aWaypoint saved! Total: " + waypoints.length);
 });
+
+Distance.addButton("Clear Waypoints", function() { waypoints = []; });
 
 Distance.on("render3d", function() {
+    if (Distance.isPlayerNull()) return;
+    var px = Distance.getPlayerX(), py = Distance.getPlayerY(), pz = Distance.getPlayerZ();
+    
     for (var i = 0; i < waypoints.length; i++) {
         var wp = waypoints[i];
-        
-        Distance.drawBox3D(
-            wp.x - 0.5, wp.y, wp.z - 0.5,
-            1, 2, 1,
-            0x80FF00FF
-        );
-        
-        if (Distance.isPlayerNull()) continue;
-        
-        Distance.drawLine3D(
-            Distance.getPlayerX(), Distance.getPlayerY(), Distance.getPlayerZ(),
-            wp.x, wp.y + 1, wp.z,
-            0x8000FFFF
-        );
+        Distance.drawFilledBox(wp.x - 0.5, wp.y, wp.z - 0.5, 1, 2, 1, 0x8000FFFF);
+        Distance.drawLine3D(px, py + 1, pz, wp.x, wp.y + 1, wp.z, 0x4000FFFF);
     }
 });
-```
 
----
-
-## Inventory Management
-
-Interact with player inventory and containers.
-
-### Reading Inventory
-
-```javascript
-Distance.on("inventoryOpen", function() {
-    var inventory = Distance.getInventory();
-    
-    for (var i = 0; i < inventory.length; i++) {
-        if (inventory[i] != null) {
-            var item = inventory[i];
-            Distance.log("Slot " + i + ": " + item.name + " x" + item.count);
+Distance.on("render2d", function() {
+    for (var i = 0; i < waypoints.length; i++) {
+        var wp = waypoints[i];
+        var pos = Distance.worldToScreen(wp.x, wp.y + 2.5, wp.z);
+        if (pos != null && pos.visible) {
+            var dist = Distance.distance3D(
+                Distance.getPlayerX(), Distance.getPlayerY(), Distance.getPlayerZ(),
+                wp.x, wp.y, wp.z
+            );
+            Distance.drawTextCenteredShadow(dist.toFixed(0) + "m", pos.x, pos.y, 0x00FFFF);
         }
     }
-});
-```
-
-### Getting Held Item
-
-```javascript
-Distance.on("tick", function() {
-    if (Distance.isPlayerNull()) return;
-    
-    var held = Distance.getHeldItem();
-    if (held != null) {
-        Distance.log("Holding: " + held.name);
-        Distance.log("Durability: " + (held.maxDamage - held.damage) + "/" + held.maxDamage);
-    }
-});
-```
-
-### Moving Items
-
-```javascript
-Distance.on("chestOpen", function() {
-    Distance.moveItem(0, 27);
-});
-```
-
-### Dropping Items
-
-```javascript
-Distance.on("tick", function() {
-    if (Distance.isKeyDown(34)) {
-        Distance.dropItem(0);
-    }
-});
-```
-
-### Example - Auto Sort
-
-```javascript
-var sortEnabled = false;
-
-Distance.createTab("Auto Sort", "gear");
-
-Distance.addToggle("Enable Auto Sort", false, function(value) {
-    sortEnabled = value;
-});
-
-Distance.on("chestOpen", function() {
-    if (!sortEnabled) return;
-    
-    var inventory = Distance.getInventory();
-    
-    for (var i = 0; i < 27; i++) {
-        if (inventory[i] != null) {
-            var item = inventory[i];
-            
-            if (item.name.includes("Diamond")) {
-                Distance.moveItem(i, 0);
-            }
-        }
-    }
-    
-    Distance.chat("&aSorted diamonds to top!");
 });
 ```
 
@@ -305,143 +361,109 @@ Distance.on("chestOpen", function() {
 
 ## Notifications
 
-Display popup notifications.
-
-### Basic Notification
-
 ```javascript
-Distance.notification("Title", "Message text", 5);
+Distance.notification("Title", "Message text", 5); // shows for 5 seconds
 ```
 
-**Parameters:**
-- `title` - Notification title (string)
-- `message` - Notification text (string)
-- `duration` - Display time in seconds (number)
-
-### Example - Health Alert
-
+**Example — low health alert:**
 ```javascript
 var lastHealth = 20;
+var alerted = false;
 
 Distance.on("tick", function() {
     if (Distance.isPlayerNull()) return;
+    var hp = Distance.getHealth();
     
-    var health = Distance.getHealth();
-    
-    if (health < 5 && health < lastHealth) {
-        Distance.notification(
-            "Low Health!",
-            "Health: " + health.toFixed(1),
-            3
-        );
+    if (hp < 6 && hp < lastHealth && !alerted) {
+        Distance.notification("⚠ Low Health!", "HP: " + hp.toFixed(1), 4);
+        Distance.playSound("random.explode", 0.5, 1.5);
+        alerted = true;
     }
-    
-    lastHealth = health;
-});
-```
-
-### Example - Item Pickup Notification
-
-```javascript
-Distance.on("itemPickup", function(item) {
-    if (item.name.includes("Diamond")) {
-        Distance.notification(
-            "Rare Item!",
-            "Picked up: " + item.name,
-            5
-        );
-        Distance.playSound("random.levelup", 1.0, 1.0);
-    }
+    if (hp > 8) alerted = false;
+    lastHealth = hp;
 });
 ```
 
 ---
 
-## Complete Advanced Example
+## Complete Advanced Script
 
 ```javascript
-Distance.log("Advanced script loading...");
+// ================================================
+// Advanced HUD — combines most features above
+// ================================================
 
-Distance.createTab("Advanced Features", "star");
+Distance.createTab("Advanced HUD", "visuals");
 
-var apiEnabled = false;
-var avatarId = "069a79f4-44e9-4726-a5be-fca90e38aaf5";
-var showWaypoints = false;
-var waypoints = [];
+var hudEnabled  = Distance.loadDataBool("hud_on", true);
+var espEnabled  = Distance.loadDataBool("esp_on", false);
+var hudColor    = Distance.resolveColor(Distance.loadData("hud_color", "FFFFFF"));
 
-Distance.addToggle("Enable API", false, function(value) {
-    apiEnabled = value;
+Distance.addToggle("Show HUD", hudEnabled, function(v) {
+    hudEnabled = v;
+    Distance.saveData("hud_on", v);
 });
 
-Distance.addTextInput("Avatar UUID", avatarId, function(value) {
-    avatarId = value;
-    loadAvatar();
+Distance.addToggle("Player ESP", espEnabled, function(v) {
+    espEnabled = v;
+    Distance.saveData("esp_on", v);
+    Distance.chat(v ? "&aESP &aON" : "&cESP &cOFF");
 });
 
-Distance.addToggle("Show Waypoints", false, function(value) {
-    showWaypoints = value;
+Distance.addColor("HUD Color", "FFFFFF", function(v) {
+    hudColor = Distance.resolveColor(v);
+    Distance.saveData("hud_color", v);
 });
 
-function loadAvatar() {
-    Distance.downloadImage(
-        "https://crafatar.com/avatars/" + avatarId,
-        "player_avatar",
-        function() {
-            Distance.notification("Avatar", "Loaded successfully!", 3);
-        }
-    );
-}
+Distance.addButton("Copy Coords", function() {
+    var coords = Distance.getPlayerX().toFixed(0) + " " + Distance.getPlayerY().toFixed(0) + " " + Distance.getPlayerZ().toFixed(0);
+    Distance.copyToClipboard(coords);
+    Distance.notification("Coords Copied", coords, 2);
+});
 
-loadAvatar();
-
-Distance.on("tick", function() {
-    if (Distance.isPlayerNull()) return;
-    
-    if (Distance.isKeyDown(38) && showWaypoints) {
-        waypoints.push({
-            x: Distance.getPlayerX(),
-            y: Distance.getPlayerY(),
-            z: Distance.getPlayerZ()
-        });
-        Distance.notification("Waypoint", "Added at current location", 2);
-    }
+// Fetch something from a web API on load
+var serverNote = "";
+Distance.httpGet("https://api.example.com/motd", function(response) {
+    try {
+        serverNote = JSON.parse(response).message;
+    } catch(e) {}
 });
 
 Distance.on("render2d", function() {
-    var screenWidth = Distance.getScreenWidth();
+    if (!hudEnabled || Distance.isPlayerNull()) return;
     
-    Distance.drawImage("player_avatar", screenWidth - 74, 10, 64, 64);
+    var speed = Distance.getSpeed() * 20;
+    var ping  = Distance.getServerPing();
+    var biome = Distance.getBiome(Distance.getPlayerX(), Distance.getPlayerY(), Distance.getPlayerZ());
+    var hp    = Distance.getHealth() / Distance.getMaxHealth();
     
-    Distance.drawTextShadow(
-        "Waypoints: " + waypoints.length,
-        screenWidth - 74,
-        80,
-        0xFFFFFF
-    );
+    Distance.drawRoundedRect(10, 10, 160, 75, 4, 0xA0000000);
+    
+    var hpColor = Distance.lerpColor(0xFFFF3333, 0xFF33FF66, hp);
+    Distance.drawProgressBar(14, 14, 152, 5, hp, 2, 0x40000000, hpColor);
+    
+    Distance.drawTextShadow("Speed: " + speed.toFixed(1) + " b/s", 14, 26, hudColor);
+    Distance.drawTextShadow("Ping: " + (ping >= 0 ? ping + "ms" : "SP"), 14, 38, hudColor);
+    Distance.drawTextShadow("Biome: " + biome, 14, 50, hudColor);
+    Distance.drawTextShadow("XP: " + Distance.getXpLevel() + " (" + (Distance.getXpProgress() * 100).toFixed(0) + "%)", 14, 62, hudColor);
+    
+    if (serverNote) {
+        Distance.drawTextShadow(serverNote, 14, 80, 0xFFFF88);
+    }
 });
 
 Distance.on("render3d", function() {
-    if (!showWaypoints) return;
-    
-    for (var i = 0; i < waypoints.length; i++) {
-        var wp = waypoints[i];
-        Distance.drawBox3D(wp.x - 0.5, wp.y, wp.z - 0.5, 1, 2, 1, 0x80FF00FF);
+    if (!espEnabled) return;
+    var players = Distance.getPlayers();
+    for (var i = 0; i < players.length; i++) {
+        var p = players[i];
+        var hpRatio = p.health / p.maxHealth;
+        var color = Distance.lerpColor(0xCCFF3333, 0xCC33FF66, hpRatio);
+        Distance.drawOutline(p, color, 1.5);
     }
 });
 
-Distance.on("itemPickup", function(item) {
-    if (item.name.includes("Diamond")) {
-        Distance.notification("Rare Item!", item.name + " x" + item.count, 5);
-    }
+Distance.on("worldChange", function() {
+    Distance.chat("&aWorld loaded — " + Distance.currentServerIP());
 });
-
-Distance.log("Advanced script loaded!");
 ```
-
----
-
-## Next Steps
-
-- Review the [API Reference](api-reference.md) for function details
-- Check [Events](events.md) for all available events
-- See [Examples](examples.md) for more complete scripts

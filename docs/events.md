@@ -339,19 +339,6 @@ Distance.on("key", function(keyCode) {
 });
 ```
 
----
-
-### `keyInput`
-
-Enhanced key input event (fires for all key events).
-
-**Parameters:** `keyCode` (integer key code)
-
-```javascript
-Distance.on("keyInput", function(keyCode) {
-    Distance.log("Key input: " + keyCode);
-});
-```
 
 ---
 
@@ -401,6 +388,25 @@ Distance.on("worldChange", function() {
     Distance.chat("Server: " + server);
 });
 ```
+
+---
+
+
+## Custom Events (Script Communication)
+
+Scripts can fire and receive their own events using `Distance.emit()`:
+
+```javascript
+// In any script
+Distance.emit("myCustomEvent", { value: 42 });
+
+// In any loaded script (including the sender)
+Distance.on("myCustomEvent", function(data) {
+    Distance.chat("Got: " + data.value);
+});
+```
+
+This is the primary way for multiple scripts to communicate. See [Advanced Features](advanced-features.md#script-communication) for a full example.
 
 ---
 

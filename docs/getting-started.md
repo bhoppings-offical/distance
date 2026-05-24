@@ -1,6 +1,6 @@
 # Getting Started
 
-Welcome to Distance scripting! This guide will help you create your first script.
+Welcome to Distance scripting! This guide will get you from zero to a working script.
 
 ## Prerequisites
 
@@ -9,210 +9,196 @@ Welcome to Distance scripting! This guide will help you create your first script
 
 ## File Setup
 
-### Location
-All scripts must be placed in:
+Scripts live in:
 ```
 config/DistanceMod/scripts/
 ```
 
-### File Extension
-Scripts must end with `.dscript`:
+They must end in `.dscript`. Anything else is ignored.
+
+## Script Metadata
+
+You can tag your script with metadata that appears in the Distance script list:
+
+```javascript
+//@author YourName
+//@version 1.2
+//@description A short description of what this does
 ```
-MyScript.dscript ✓
-MyScript.js ✗
-```
+
+These are optional but recommended for any script you share.
 
 ## Your First Script
 
-Create a file called `MyFirstScript.dscript`:
+Create `MyFirstScript.dscript`:
 
 ```javascript
-// MyFirstScript.dscript
+//@author Me
+//@version 1.0
+//@description Hello world example
 
-// The Distance API is automatically available
 Distance.log("Script loaded!");
+Distance.chat("&aHello from Distance!");
 
-// Send a colored chat message
-Distance.chat("&aHello from my script!");
-
-// Register a tick event (runs 20 times per second)
-Distance.on("tick", function(event) {
-    // Your code here
+Distance.on("tick", function() {
+    // Runs 20 times per second
 });
 
-// Register a render event
-Distance.on("render2d", function(resolution) {
-    // Draw on screen here
+Distance.on("render2d", function() {
+    if (Distance.isPlayerNull()) return;
+    Distance.drawTextShadow("Hello World!", 10, 10, 0xFF55FF55);
 });
 ```
 
 ## Loading Your Script
 
-1. Place your `.dscript` file in `config/DistanceMod/scripts/`
+1. Place the `.dscript` file in `config/DistanceMod/scripts/`
 2. Open the Distance GUI in-game
 3. Navigate to the **Scripts** tab
-4. Find your script in the list
-5. Toggle it **ON** to enable it
-6. Scripts automatically reload when toggled
+4. Toggle your script ON
+5. To reload after editing, toggle it OFF then ON again
 
 ## Core Concepts
 
 ### The Distance Object
 
-Every script has access to a global `Distance` object that provides all functionality:
-
-```javascript
-Distance.log("Logging to console");
-Distance.chat("Message to player");
-Distance.error("Error message");
-```
+Every script gets a global `Distance` object with all the API methods. The `mc` variable (the raw Minecraft client) is also available.
 
 ### Script Name
 
-Access your script's filename:
-
 ```javascript
-Distance.log("My script name is: " + Distance.scriptName);
+Distance.chat("I am: " + Distance.scriptName);
 ```
 
-### Minecraft Client Access
+### Event-Driven Design
 
-The `mc` variable is automatically available:
+Almost everything in Distance works through events. Register handlers at load time:
 
 ```javascript
-var player = mc.thePlayer;
-var world = mc.theWorld;
+Distance.on("tick", function() { /* 20x/sec */ });
+Distance.on("render2d", function() { /* HUD rendering */ });
+Distance.on("attack", function(target) { /* player attacked something */ });
+```
 
-if (player != null) {
-    Distance.log("Player: " + player.getName());
-}
+### Safety Checks
+
+Always check that the player and world exist before accessing them:
+
+```javascript
+Distance.on("tick", function() {
+    if (Distance.isPlayerNull()) return;
+    // safe to use player APIs here
+});
 ```
 
 ## Simple Examples
 
-### Example 1: Position Logger
-
-```javascript
-Distance.on("tick", function() {
-    if (Distance.isPlayerNull()) return;
-    
-    var x = Distance.getPlayerX();
-    var y = Distance.getPlayerY();
-    var z = Distance.getPlayerZ();
-    
-    Distance.log("Position: " + x + ", " + y + ", " + z);
-});
-```
-
-### Example 2: Health Display
+### Example 1: Coordinates HUD
 
 ```javascript
 Distance.on("render2d", function() {
     if (Distance.isPlayerNull()) return;
-    
-    var health = Distance.getHealth();
-    var maxHealth = Distance.getMaxHealth();
-    
-    Distance.drawTextShadow(
-        "Health: " + health + "/" + maxHealth,
-        10, 10, 0xFF5555
-    );
+    var x = Distance.getPlayerX().toFixed(1);
+    var y = Distance.getPlayerY().toFixed(1);
+    var z = Distance.getPlayerZ().toFixed(1);
+    Distance.drawTextShadow("XYZ: " + x + " " + y + " " + z, 10, 10, 0xFFFFFF);
 });
 ```
 
-### Example 3: Speed Boost
+### Example 2: Speed Meter
+
+```javascript
+Distance.on("render2d", function() {
+    if (Distance.isPlayerNull()) return;
+    var speed = Distance.getSpeed() * 20; // blocks per second
+    var color = speed > 6 ? 0xFF55FF55 : 0xFFFFFFFF;
+    Distance.drawTextShadow("Speed: " + speed.toFixed(2) + " b/s", 10, 10, color);
+});
+```
+
+### Example 3: Auto Jump
 
 ```javascript
 Distance.on("tick", function() {
     if (Distance.isPlayerNull()) return;
-    
-    if (Distance.isKeyDown(17)) { // W key
-        var mx = Distance.getMotionX() * 1.5;
-        var mz = Distance.getMotionZ() * 1.5;
-        Distance.setMotion(mx, Distance.getMotionY(), mz);
+    if (Distance.isOnGround() && Distance.isKeyDown("W")) {
+        Distance.setMotion(Distance.getMotionX(), 0.42, Distance.getMotionZ());
     }
+});
+```
+
+### Example 4: Persistent Toggle
+
+```javascript
+//@description Toggle example with persisted state
+
+var enabled = Distance.loadDataBool("enabled", false);
+
+Distance.createTab("My Script", "star");
+Distance.addToggle("Enable", enabled, function(value) {
+    enabled = value;
+    Distance.saveData("enabled", value);
+    Distance.chat(value ? "&aEnabled!" : "&cDisabled!");
+});
+
+Distance.on("render2d", function() {
+    if (!enabled || Distance.isPlayerNull()) return;
+    Distance.drawTextShadow("Active", 10, 10, 0xFF55FF55);
 });
 ```
 
 ## Color Codes
 
-Use `&` followed by a code in chat messages:
+Use `&` in `Distance.chat()` messages:
 
-```javascript
-Distance.chat("&aGreen text");
-Distance.chat("&cRed &eYellow &bBlue");
-Distance.chat("&l&nBold and underlined");
-```
+| Code | Effect |
+|------|--------|
+| `&a` | Green |
+| `&c` | Red |
+| `&e` | Yellow |
+| `&b` | Aqua |
+| `&f` | White |
+| `&l` | Bold |
+| `&r` | Reset |
 
-**Available codes:**
-- `&0-9` - Colors (0=black, 9=blue)
-- `&a-f` - More colors (a=green, c=red, e=yellow)
-- `&l` - Bold
-- `&n` - Underline
-- `&r` - Reset
-
-## Safety Checks
-
-Always check if player/world exists before accessing data:
-
-```javascript
-Distance.on("tick", function() {
-    // Check if player exists
-    if (Distance.isPlayerNull()) {
-        return; // Exit early
-    }
-    
-    // Safe to use player data now
-    var health = Distance.getHealth();
-});
-```
+Full table in [API Reference](api-reference.md#core-functions).
 
 ## Debugging
 
-### Console Logging
-
 ```javascript
-Distance.log("Debug info");
-Distance.log("Variable value: " + myVariable);
+Distance.log("Value: " + myVar);        // goes to console
+Distance.chat("&e[Debug] " + myVar);    // goes to in-game chat
 ```
 
-View logs in:
-- F3 debug overlay
-- Game console/terminal
-
-### On-Screen Debug
+For on-screen debug display:
 
 ```javascript
-var debugEnabled = true;
+var debug = true;
 
 Distance.on("render2d", function() {
-    if (!debugEnabled) return;
-    
-    Distance.drawTextShadow("Debug Mode", 10, 10, 0xFFFF00);
-    Distance.drawTextShadow("Player Null: " + Distance.isPlayerNull(), 10, 25, 0xFFFFFF);
+    if (!debug || Distance.isPlayerNull()) return;
+    Distance.drawTextShadow("HP: " + Distance.getHealth(), 10, 10, 0xFFFFFF);
+    Distance.drawTextShadow("OnGround: " + Distance.isOnGround(), 10, 22, 0xFFFFFF);
+    Distance.drawTextShadow("Speed: " + Distance.getSpeed().toFixed(3), 10, 34, 0xFFFFFF);
 });
 ```
 
-## Next Steps
-
-- Read the [API Reference](api-reference.md) for complete function documentation
-- Check out [Examples](examples.md) for more complex scripts
-- Learn about the [Event System](events.md)
-- Explore [Rendering](rendering.md) for HUD creation
-- Review [Best Practices](best-practices.md) for optimization tips
-
 ## Common Issues
 
-**Script doesn't load:**
-- Check console for syntax errors
-- Verify `.dscript` extension
-- Make sure file is in correct folder
+**Script doesn't load** — Check the console for a syntax error. Verify the file ends in `.dscript` and is in the right folder.
 
-**Events don't fire:**
-- Verify event name spelling
-- Check script is enabled in GUI
-- Ensure callbacks are registered at load time
+**Events don't fire** — Make sure the event name is spelled correctly and the script is toggled ON.
 
-**Player data returns null:**
-- Always use `Distance.isPlayerNull()` check
-- Player is null in menus and loading screens
+**Crashes with null errors** — Always guard with `Distance.isPlayerNull()` / `Distance.isWorldNull()` before accessing player/world data.
+
+**Settings don't persist** — Use `Distance.saveData()` / `Distance.loadData()` to save values across sessions.
+
+## Next Steps
+
+- [API Reference](api-reference.md) — Every function, with examples
+- [Event System](events.md) — All events and when to use them
+- [Rendering Guide](rendering.md) — 2D and 3D drawing
+- [GUI Settings](gui-settings.md) — Config panels
+- [Advanced Features](advanced-features.md) — Storage, web requests, script communication
+- [Examples](examples.md) — Complete ready-to-use scripts
+- [Best Practices](best-practices.md) — Performance tips
