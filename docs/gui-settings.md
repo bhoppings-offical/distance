@@ -27,7 +27,7 @@ Must be called before adding any settings.
 Distance.createTab("My Script", "star");
 ```
 
-**Available icons:** `announcement`, `audio`, `effects`, `folder`, `general_settings`, `heart`, `image`, `irc`, `placeholder`, `premium`, `script`, `search`, `star`, `sun`, `targeter`, `user`, `visuals`, `world`
+**Available icons:** [available-icons.md](available-icons.md)
 
 ---
 
