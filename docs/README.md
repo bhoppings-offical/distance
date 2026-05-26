@@ -2,6 +2,8 @@
 
 A powerful JavaScript scripting framework for Minecraft that lets you create custom HUDs, movement tools, combat utilities, world scanners, and much more.
 
+### Click here to get started: [Getting Started](getting-started.md)
+
 ## Features
 
 - **Custom HUDs & Overlays** — Build personalized on-screen displays with text, shapes, images, and progress bars
