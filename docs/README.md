@@ -65,6 +65,7 @@ Distance.on("render2d", function() {
 | [Advanced Features](advanced-features.md) | Storage, web, colors, communication |
 | [Best Practices](best-practices.md) | Performance tips and patterns |
 | [Examples](examples.md) | Ready-to-use example scripts |
+| [Available Icons](available-icons.md) | All icons for your tab |
 
 ## Quick Reference
 
